@@ -8,6 +8,9 @@ services:
       dockerfile: Dockerfile
     container_name: xovis-dashboard
     restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp:unconfined
     environment:
       # Xovis Sensor Konfiguration
       - XOVIS_SENSOR_IP=10.13.1.165
