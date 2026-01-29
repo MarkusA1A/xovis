@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Besucherzähler - Ärztehaus</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Besucherzähler Ärztehaus</h1>
+            <div class="status" id="status">
+                <span class="status-dot"></span>
+                <span class="status-text">Verbindung wird geprüft...</span>
+            </div>
+        </header>
+
+        <!-- Live-Anzeige -->
+        <section class="live-section">
+            <div class="live-cards">
+                <div class="card live-card current">
+                    <div class="card-icon">👥</div>
+                    <div class="card-value" id="current-occupancy">--</div>
+                    <div class="card-label">Aktuell im Gebäude</div>
+                </div>
+                <div class="card live-card in">
+                    <div class="card-icon">➡️</div>
+                    <div class="card-value" id="count-in">--</div>
+                    <div class="card-label">Heute eingetreten</div>
+                </div>
+                <div class="card live-card out">
+                    <div class="card-icon">⬅️</div>
+                    <div class="card-value" id="count-out">--</div>
+                    <div class="card-label">Heute verlassen</div>
+                </div>
+            </div>
+            <div class="last-update">
+                Letzte Aktualisierung: <span id="last-update">--</span>
+            </div>
+        </section>
+
+        <!-- Tabs für Statistiken -->
+        <section class="stats-section">
+            <div class="tabs">
+                <button class="tab active" data-tab="today">Heute</button>
+                <button class="tab" data-tab="week">Woche</button>
+                <button class="tab" data-tab="month">Monat</button>
+            </div>
+
+            <div class="tab-content active" id="tab-today">
+                <h2>Tagesverlauf</h2>
+                <div class="chart-container">
+                    <canvas id="chart-today"></canvas>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-week">
+                <h2>Letzte 7 Tage</h2>
+                <div class="chart-container">
+                    <canvas id="chart-week"></canvas>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-month">
+                <h2>Aktueller Monat</h2>
+                <div class="chart-container">
+                    <canvas id="chart-month"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>Xovis PC2SE Personenzähler | Sensor IP: <span id="sensor-ip">--</span></p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

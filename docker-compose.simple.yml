@@ -1,0 +1,31 @@
+# Einfache Version ohne Nginx (nur für internen Zugriff)
+version: '3.8'
+
+services:
+  xovis-dashboard:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: xovis-dashboard
+    restart: unless-stopped
+    environment:
+      # Xovis Sensor Konfiguration
+      - XOVIS_SENSOR_IP=10.13.1.165
+      - XOVIS_SENSOR_PORT=80
+      - XOVIS_USERNAME=admin
+      - XOVIS_PASSWORD=pass
+      # Polling Intervall (Sekunden)
+      - POLL_INTERVAL=60
+      # Datenbank
+      - DATABASE_PATH=/data/xovis_counts.db
+    volumes:
+      # Frontend-Dateien
+      - ./frontend:/app/frontend:ro
+      # Persistente Datenbank
+      - xovis-data:/data
+    ports:
+      - "8080:8000"
+
+volumes:
+  xovis-data:
+    name: xovis-dashboard-data
