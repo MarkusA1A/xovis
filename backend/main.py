@@ -70,30 +70,48 @@ async def webhook_xovis(request: Request):
         body_text = body.decode("utf-8")
 
         logger.info(f"Webhook empfangen - Content-Type: {content_type}")
-        logger.info(f"Body: {body_text[:500]}")  # Erste 500 Zeichen loggen
+        logger.debug(f"Body: {body_text[:1000]}")
 
-        # JSON oder XML parsen
-        if "json" in content_type:
-            import json
-            data = json.loads(body_text)
-        else:
-            data = parse_xovis_xml(body_text)
+        import json
+        data = json.loads(body_text)
 
-        # Werte extrahieren
-        count_in = extract_count(data, ["fw", "forward", "in", "countIn", "count_in", "cnt_in"])
-        count_out = extract_count(data, ["bw", "backward", "out", "countOut", "count_out", "cnt_out"])
-        occupancy = max(0, count_in - count_out)
+        # Xovis Live Data Format parsen
+        count_in = 0
+        count_out = 0
 
-        logger.info(f"Verarbeitet: IN={count_in}, OUT={count_out}, Belegung={occupancy}")
+        # Events aus frames extrahieren
+        live_data = data.get("live_data", data)
+        frames = live_data.get("frames", [])
+
+        for frame in frames:
+            events = frame.get("events", [])
+            for event in events:
+                if event.get("category") == "COUNT" and event.get("type") == "COUNT_INCREMENT":
+                    attrs = event.get("attributes", {})
+                    direction = attrs.get("direction", "")
+
+                    if direction == "fw" or direction == "forward" or direction == 1:
+                        count_in += 1
+                    elif direction == "bw" or direction == "backward" or direction == -1 or direction == 0:
+                        count_out += 1
+
+        # Aktuelle Werte aus DB holen und inkrementieren
+        live = await get_live_count()
+        new_in = live.get("count_in", 0) + count_in
+        new_out = live.get("count_out", 0) + count_out
+        occupancy = max(0, new_in - new_out)
+
+        logger.info(f"Events: +{count_in} IN, +{count_out} OUT | Gesamt: {new_in} IN, {new_out} OUT, Belegung: {occupancy}")
 
         # Speichern
-        await update_live_count(count_in, count_out, occupancy)
-        await save_count(count_in, count_out, occupancy)
+        await update_live_count(new_in, new_out, occupancy)
 
-        return {"status": "ok", "in": count_in, "out": count_out}
+        return {"status": "ok", "added_in": count_in, "added_out": count_out}
 
     except Exception as e:
         logger.error(f"Webhook Fehler: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {"status": "error", "message": str(e)}
 
 
