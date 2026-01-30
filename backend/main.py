@@ -88,20 +88,22 @@ async def webhook_xovis(request: Request):
             for event in events:
                 if event.get("category") == "COUNT" and event.get("type") == "COUNT_INCREMENT":
                     attrs = event.get("attributes", {})
-                    direction = attrs.get("direction", "")
+                    counter_name = attrs.get("counter_name", "")
+                    counter_value = attrs.get("counter_value", 0)
 
-                    if direction == "fw" or direction == "forward" or direction == 1:
-                        count_in += 1
-                    elif direction == "bw" or direction == "backward" or direction == -1 or direction == 0:
-                        count_out += 1
+                    # fw = forward = Eintritt, bw = backward = Austritt
+                    if counter_name == "fw":
+                        count_in = max(count_in, counter_value)
+                    elif counter_name == "bw":
+                        count_out = max(count_out, counter_value)
 
-        # Aktuelle Werte aus DB holen und inkrementieren
-        live = await get_live_count()
-        new_in = live.get("count_in", 0) + count_in
-        new_out = live.get("count_out", 0) + count_out
-        occupancy = max(0, new_in - new_out)
-
-        logger.info(f"Events: +{count_in} IN, +{count_out} OUT | Gesamt: {new_in} IN, {new_out} OUT, Belegung: {occupancy}")
+        # Nur speichern wenn Werte vorhanden
+        if count_in > 0 or count_out > 0:
+            occupancy = max(0, count_in - count_out)
+            await update_live_count(count_in, count_out, occupancy)
+            logger.info(f"Aktualisiert: IN={count_in}, OUT={count_out}, Belegung={occupancy}")
+        else:
+            logger.info("Keine Zählwerte im Webhook")
 
         # Speichern
         await update_live_count(new_in, new_out, occupancy)
