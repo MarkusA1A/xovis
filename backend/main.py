@@ -75,29 +75,48 @@ async def webhook_xovis(request: Request):
         import json
         data = json.loads(body_text)
 
-        # Xovis Live Data Format parsen
         count_in = 0
         count_out = 0
 
-        # Events aus frames extrahieren
-        live_data = data.get("live_data", data)
-        frames = live_data.get("frames", [])
+        # Format 1: Live Data Push (live_data mit frames/events)
+        if "live_data" in data:
+            live_data = data["live_data"]
+            frames = live_data.get("frames", [])
+            for frame in frames:
+                events = frame.get("events", [])
+                for event in events:
+                    if event.get("category") == "COUNT" and event.get("type") == "COUNT_INCREMENT":
+                        attrs = event.get("attributes", {})
+                        counter_name = attrs.get("counter_name", "")
+                        counter_value = attrs.get("counter_value", 0)
+                        if counter_name == "fw":
+                            count_in = max(count_in, counter_value)
+                        elif counter_name == "bw":
+                            count_out = max(count_out, counter_value)
 
-        for frame in frames:
-            events = frame.get("events", [])
-            for event in events:
-                if event.get("category") == "COUNT" and event.get("type") == "COUNT_INCREMENT":
-                    attrs = event.get("attributes", {})
-                    counter_name = attrs.get("counter_name", "")
-                    counter_value = attrs.get("counter_value", 0)
+        # Format 2: Logic Push (logics_data mit records)
+        elif "logics_data" in data:
+            logics_data = data["logics_data"]
+            logics = logics_data.get("logics", [])
+            for logic in logics:
+                records = logic.get("records", [])
+                for record in records:
+                    counts = record.get("counts", [])
+                    for count in counts:
+                        name = count.get("name", "")
+                        value = count.get("value", 0)
+                        if name == "fw":
+                            count_in += value
+                        elif name == "bw":
+                            count_out += value
 
-                    # fw = forward = Eintritt, bw = backward = Austritt
-                    if counter_name == "fw":
-                        count_in = max(count_in, counter_value)
-                    elif counter_name == "bw":
-                        count_out = max(count_out, counter_value)
+        # Aktuelle Werte aus DB holen und addieren (für Logic Push)
+        if "logics_data" in data:
+            live = await get_live_count()
+            count_in = live.get("count_in", 0) + count_in
+            count_out = live.get("count_out", 0) + count_out
 
-        # Nur speichern wenn Werte vorhanden
+        # Speichern wenn Werte vorhanden
         if count_in > 0 or count_out > 0:
             occupancy = max(0, count_in - count_out)
             await update_live_count(count_in, count_out, occupancy)
@@ -105,10 +124,7 @@ async def webhook_xovis(request: Request):
         else:
             logger.info("Keine Zählwerte im Webhook")
 
-        # Speichern
-        await update_live_count(new_in, new_out, occupancy)
-
-        return {"status": "ok", "added_in": count_in, "added_out": count_out}
+        return {"status": "ok", "count_in": count_in, "count_out": count_out}
 
     except Exception as e:
         logger.error(f"Webhook Fehler: {e}")
