@@ -9,12 +9,15 @@ let chartMonth = null;
 
 // Farben für Charts
 const COLORS = {
-    in: 'rgba(34, 197, 94, 0.8)',       // Grün
-    inBg: 'rgba(34, 197, 94, 0.2)',
-    out: 'rgba(239, 68, 68, 0.8)',      // Rot
-    outBg: 'rgba(239, 68, 68, 0.2)',
-    occupancy: 'rgba(37, 99, 235, 0.8)', // Blau
-    occupancyBg: 'rgba(37, 99, 235, 0.2)'
+    in: 'rgb(34, 197, 94)',             // Grün
+    inBorder: 'rgb(22, 163, 74)',
+    inBg: 'rgba(34, 197, 94, 0.15)',
+    out: 'rgb(239, 68, 68)',            // Rot
+    outBorder: 'rgb(220, 38, 38)',
+    outBg: 'rgba(239, 68, 68, 0.15)',
+    occupancy: 'rgb(37, 99, 235)',      // Blau
+    occupancyBorder: 'rgb(29, 78, 216)',
+    occupancyBg: 'rgba(37, 99, 235, 0.1)'
 };
 
 // ==================== API Calls ====================
@@ -32,16 +35,31 @@ async function fetchAPI(endpoint) {
 
 // ==================== Live-Daten ====================
 
+// Letzte bekannte Werte für Animation
+let lastValues = { occupancy: null, count_in: null, count_out: null };
+
+function animateValue(elementId, newValue) {
+    const element = document.getElementById(elementId);
+    const oldValue = element.textContent;
+    element.textContent = newValue ?? '--';
+
+    // Animation bei Wertänderung
+    if (oldValue !== '--' && oldValue !== String(newValue)) {
+        element.classList.add('updated');
+        setTimeout(() => element.classList.remove('updated'), 300);
+    }
+}
+
 async function updateLiveData() {
     const data = await fetchAPI('/api/live');
     if (!data) return;
 
     const current = data.current || {};
 
-    // Werte aktualisieren
-    document.getElementById('current-occupancy').textContent = current.occupancy ?? '--';
-    document.getElementById('count-in').textContent = current.count_in ?? '--';
-    document.getElementById('count-out').textContent = current.count_out ?? '--';
+    // Werte mit Animation aktualisieren
+    animateValue('current-occupancy', current.occupancy);
+    animateValue('count-in', current.count_in);
+    animateValue('count-out', current.count_out);
 
     // Zeitstempel
     const timestamp = new Date(data.timestamp);
@@ -70,26 +88,54 @@ async function updateStatus() {
 
 // ==================== Charts ====================
 
-function createChart(ctx, type, labels, datasets) {
+function createChart(ctx, type, labels, datasets, options = {}) {
     return new Chart(ctx, {
         type: type,
         data: { labels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
             plugins: {
                 legend: {
                     position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    titleFont: { size: 14 },
+                    bodyFont: { size: 13 },
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y} Personen`;
+                        }
+                    }
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
                     ticks: {
-                        stepSize: 1
+                        precision: 0
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
                     }
                 }
-            }
+            },
+            ...options
         }
     });
 }
@@ -127,25 +173,34 @@ async function updateTodayChart() {
                 data: dataIn,
                 borderColor: COLORS.in,
                 backgroundColor: COLORS.inBg,
+                borderWidth: 2,
                 fill: true,
-                tension: 0.3
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 6
             },
             {
                 label: 'Austritte',
                 data: dataOut,
                 borderColor: COLORS.out,
                 backgroundColor: COLORS.outBg,
+                borderWidth: 2,
                 fill: true,
-                tension: 0.3
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 6
             },
             {
                 label: 'Max. Belegung',
                 data: dataOccupancy,
                 borderColor: COLORS.occupancy,
                 backgroundColor: COLORS.occupancyBg,
+                borderWidth: 2,
                 fill: false,
-                tension: 0.3,
-                borderDash: [5, 5]
+                tension: 0.4,
+                borderDash: [6, 4],
+                pointRadius: 3,
+                pointHoverRadius: 6
             }
         ]);
     }
@@ -176,11 +231,17 @@ async function updateWeekChart() {
                 label: 'Eintritte',
                 data: dataIn,
                 backgroundColor: COLORS.in,
+                borderColor: COLORS.inBorder,
+                borderWidth: 1,
+                borderRadius: 4
             },
             {
                 label: 'Austritte',
                 data: dataOut,
                 backgroundColor: COLORS.out,
+                borderColor: COLORS.outBorder,
+                borderWidth: 1,
+                borderRadius: 4
             }
         ]);
     }
@@ -211,11 +272,17 @@ async function updateMonthChart() {
                 label: 'Eintritte',
                 data: dataIn,
                 backgroundColor: COLORS.in,
+                borderColor: COLORS.inBorder,
+                borderWidth: 1,
+                borderRadius: 4
             },
             {
                 label: 'Austritte',
                 data: dataOut,
                 backgroundColor: COLORS.out,
+                borderColor: COLORS.outBorder,
+                borderWidth: 1,
+                borderRadius: 4
             }
         ]);
     }

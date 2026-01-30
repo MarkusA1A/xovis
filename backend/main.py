@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from database import (
     init_db, save_count, get_latest_count,
     get_hourly_stats, get_daily_stats, get_monthly_stats,
-    update_live_count, get_live_count
+    update_live_count, get_live_count, save_count_if_changed
 )
 
 # Logging konfigurieren
@@ -117,7 +117,12 @@ async def webhook_xovis(request: Request):
         if count_in > 0 or count_out > 0:
             occupancy = max(0, count_in - count_out)
             await update_live_count(count_in, count_out, occupancy)
-            logger.info(f"Aktualisiert: IN={count_in}, OUT={count_out}, Belegung={occupancy}")
+            # Auch in Historie speichern für Charts
+            saved = await save_count_if_changed(count_in, count_out, occupancy)
+            if saved:
+                logger.info(f"Aktualisiert + gespeichert: IN={count_in}, OUT={count_out}, Belegung={occupancy}")
+            else:
+                logger.info(f"Aktualisiert: IN={count_in}, OUT={count_out}, Belegung={occupancy}")
         else:
             logger.info("Keine Zählwerte im Webhook")
 
@@ -206,6 +211,7 @@ async def api_get_live():
 @app.get("/api/status")
 async def get_status():
     """Status des Systems."""
+    from config import XOVIS_SENSOR_IP
     live = await get_live_count()
     last_update = live.get("last_update")
 
@@ -219,6 +225,7 @@ async def get_status():
 
     return {
         "sensor_connected": sensor_active,
+        "sensor_ip": XOVIS_SENSOR_IP,
         "last_update": last_update,
         "timestamp": datetime.now().isoformat()
     }

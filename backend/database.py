@@ -147,3 +147,20 @@ async def get_monthly_stats(year: int, month: int):
             ORDER BY date
         """, (start.isoformat(), end.isoformat())) as cursor:
             return [dict(row) for row in await cursor.fetchall()]
+
+
+# Letzter gespeicherter Wert (Cache um doppelte Einträge zu vermeiden)
+_last_saved_values = {"count_in": -1, "count_out": -1}
+
+
+async def save_count_if_changed(count_in: int, count_out: int, occupancy: int):
+    """Speichert Werte nur wenn sie sich geändert haben."""
+    global _last_saved_values
+
+    # Nur speichern wenn sich die Werte geändert haben
+    if count_in != _last_saved_values["count_in"] or count_out != _last_saved_values["count_out"]:
+        await save_count(count_in, count_out, occupancy)
+        _last_saved_values["count_in"] = count_in
+        _last_saved_values["count_out"] = count_out
+        return True
+    return False
