@@ -24,9 +24,16 @@ async def init_db():
                 count_in INTEGER DEFAULT 0,
                 count_out INTEGER DEFAULT 0,
                 occupancy INTEGER DEFAULT 0,
-                last_update DATETIME
+                last_update DATETIME,
+                last_reset_date TEXT
             )
         """)
+
+        # Spalte hinzufügen falls sie fehlt (für bestehende DBs)
+        try:
+            await db.execute("ALTER TABLE live ADD COLUMN last_reset_date TEXT")
+        except:
+            pass  # Spalte existiert bereits
 
         # Initialen Live-Eintrag erstellen
         await db.execute("""
@@ -45,10 +52,35 @@ async def update_live_count(count_in: int, count_out: int, occupancy: int):
                 count_in = ?,
                 count_out = ?,
                 occupancy = ?,
-                last_update = ?
+                last_update = ?,
+                last_reset_date = COALESCE(last_reset_date, date('now', 'localtime'))
             WHERE id = 1
         """, (count_in, count_out, occupancy, datetime.now().isoformat()))
         await db.commit()
+
+
+async def check_daily_reset():
+    """Prüft ob ein täglicher Reset nötig ist und führt ihn durch."""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT last_reset_date FROM live WHERE id = 1") as cursor:
+            row = await cursor.fetchone()
+            if row:
+                last_reset = row["last_reset_date"]
+                today = datetime.now().strftime("%Y-%m-%d")
+                if last_reset and last_reset != today:
+                    # Neuer Tag - Reset durchführen
+                    await db.execute("""
+                        UPDATE live SET
+                            count_in = 0,
+                            count_out = 0,
+                            occupancy = 0,
+                            last_reset_date = ?
+                        WHERE id = 1
+                    """, (today,))
+                    await db.commit()
+                    return True
+    return False
 
 
 async def get_live_count() -> dict:

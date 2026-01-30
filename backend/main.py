@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse
 from database import (
     init_db, save_count, get_latest_count,
     get_hourly_stats, get_daily_stats, get_monthly_stats,
-    update_live_count, get_live_count, save_count_if_changed
+    update_live_count, get_live_count, save_count_if_changed,
+    check_daily_reset
 )
 
 # Logging konfigurieren
@@ -74,6 +75,11 @@ async def webhook_xovis(request: Request):
 
         import json
         data = json.loads(body_text)
+
+        # Prüfen ob Mitternachts-Reset nötig ist
+        reset_done = await check_daily_reset()
+        if reset_done:
+            logger.info("Täglicher Reset um Mitternacht durchgeführt")
 
         # Aktuelle Werte aus DB holen
         live = await get_live_count()
