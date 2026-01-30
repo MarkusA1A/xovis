@@ -12,6 +12,8 @@ services:
     security_opt:
       - seccomp:unconfined
     environment:
+      # Zeitzone
+      - TZ=Europe/Vienna
       # Xovis Sensor Konfiguration
       - XOVIS_SENSOR_IP=10.13.1.165
       - XOVIS_SENSOR_PORT=80
