@@ -70,7 +70,7 @@ async def webhook_xovis(request: Request):
         body_text = body.decode("utf-8")
 
         logger.info(f"Webhook empfangen - Content-Type: {content_type}")
-        logger.debug(f"Body: {body_text[:1000]}")
+        logger.info(f"Body: {body_text}")
 
         import json
         data = json.loads(body_text)
