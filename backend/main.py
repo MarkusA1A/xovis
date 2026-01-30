@@ -75,8 +75,10 @@ async def webhook_xovis(request: Request):
         import json
         data = json.loads(body_text)
 
-        count_in = 0
-        count_out = 0
+        # Aktuelle Werte aus DB holen
+        live = await get_live_count()
+        count_in = live.get("count_in", 0)
+        count_out = live.get("count_out", 0)
 
         # Format 1: Live Data Push (live_data mit frames/events)
         if "live_data" in data:
@@ -89,12 +91,13 @@ async def webhook_xovis(request: Request):
                         attrs = event.get("attributes", {})
                         counter_name = attrs.get("counter_name", "")
                         counter_value = attrs.get("counter_value", 0)
+                        # counter_value ist kumulativ - direkt übernehmen
                         if counter_name == "fw":
-                            count_in = max(count_in, counter_value)
+                            count_in = counter_value
                         elif counter_name == "bw":
-                            count_out = max(count_out, counter_value)
+                            count_out = counter_value
 
-        # Format 2: Logic Push (logics_data mit records)
+        # Format 2: Logic Push (logics_data mit records) - Intervall-Werte addieren
         elif "logics_data" in data:
             logics_data = data["logics_data"]
             logics = logics_data.get("logics", [])
@@ -109,12 +112,6 @@ async def webhook_xovis(request: Request):
                             count_in += value
                         elif name == "bw":
                             count_out += value
-
-        # Aktuelle Werte aus DB holen und addieren (für Logic Push)
-        if "logics_data" in data:
-            live = await get_live_count()
-            count_in = live.get("count_in", 0) + count_in
-            count_out = live.get("count_out", 0) + count_out
 
         # Speichern wenn Werte vorhanden
         if count_in > 0 or count_out > 0:
