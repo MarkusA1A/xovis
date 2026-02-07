@@ -247,22 +247,36 @@ async def api_get_live():
 @app.get("/api/status")
 async def get_status():
     """Status des Systems."""
-    from config import XOVIS_SENSOR_IP
+    from config import XOVIS_SENSOR_IP, XOVIS_BASE_URL, XOVIS_USERNAME, XOVIS_PASSWORD
+    import httpx
+
     live = await get_live_count()
     last_update = live.get("last_update")
 
-    sensor_active = False
+    # Methode 1: Prüfe ob kürzlich Webhook-Daten empfangen wurden (30 Min Toleranz)
+    webhook_active = False
     if last_update:
         try:
             last_dt = datetime.fromisoformat(last_update)
-            sensor_active = (datetime.now() - last_dt).seconds < 300
+            webhook_active = (datetime.now() - last_dt).total_seconds() < 1800
         except Exception:
             pass
 
+    # Methode 2: Direkte HTTP-Verbindung zum Sensor prüfen
+    sensor_reachable = False
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(XOVIS_BASE_URL, auth=(XOVIS_USERNAME, XOVIS_PASSWORD))
+            sensor_reachable = response.status_code < 400
+    except Exception:
+        pass
+
     return {
-        "sensor_connected": sensor_active,
+        "sensor_connected": sensor_reachable or webhook_active,
         "sensor_ip": XOVIS_SENSOR_IP,
         "last_update": last_update,
+        "sensor_reachable": sensor_reachable,
+        "webhook_active": webhook_active,
         "timestamp": datetime.now().isoformat()
     }
 
