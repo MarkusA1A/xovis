@@ -29,16 +29,21 @@ async def init_db():
             )
         """)
 
-        # Spalte hinzufügen falls sie fehlt (für bestehende DBs)
-        try:
-            await db.execute("ALTER TABLE live ADD COLUMN last_reset_date TEXT")
-        except Exception:
-            pass  # Spalte existiert bereits
+        # Spalten hinzufügen falls sie fehlen (Migration für bestehende DBs)
+        for column in [
+            "last_reset_date TEXT",
+            "base_in INTEGER DEFAULT 0",
+            "base_out INTEGER DEFAULT 0",
+        ]:
+            try:
+                await db.execute(f"ALTER TABLE live ADD COLUMN {column}")
+            except Exception:
+                pass  # Spalte existiert bereits
 
-        # Initialen Live-Eintrag erstellen
+        # Initialen Live-Eintrag erstellen (mit last_reset_date für korrekten ersten Reset)
         await db.execute("""
-            INSERT OR IGNORE INTO live (id, count_in, count_out, occupancy)
-            VALUES (1, 0, 0, 0)
+            INSERT OR IGNORE INTO live (id, count_in, count_out, occupancy, last_reset_date)
+            VALUES (1, 0, 0, 0, date('now', 'localtime'))
         """)
 
         await db.commit()
@@ -61,24 +66,36 @@ async def update_live_count(count_in: int, count_out: int, occupancy: int):
 
 async def check_daily_reset():
     """Prüft ob ein täglicher Reset nötig ist und führt ihn durch."""
+    global _last_saved_values
+
     async with aiosqlite.connect(DATABASE_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT last_reset_date FROM live WHERE id = 1") as cursor:
+        async with db.execute("SELECT * FROM live WHERE id = 1") as cursor:
             row = await cursor.fetchone()
             if row:
                 last_reset = row["last_reset_date"]
                 today = datetime.now().strftime("%Y-%m-%d")
-                if last_reset and last_reset != today:
-                    # Neuer Tag - Reset durchführen
+
+                if not last_reset or last_reset != today:
+                    # Neuer Tag - Base-Offset für kumulative Sensorwerte aktualisieren
+                    new_base_in = (row["base_in"] or 0) + (row["count_in"] or 0)
+                    new_base_out = (row["base_out"] or 0) + (row["count_out"] or 0)
+
+                    # Counter zurücksetzen, Base-Offset speichern
                     await db.execute("""
                         UPDATE live SET
                             count_in = 0,
                             count_out = 0,
                             occupancy = 0,
+                            base_in = ?,
+                            base_out = ?,
                             last_reset_date = ?
                         WHERE id = 1
-                    """, (today,))
+                    """, (new_base_in, new_base_out, today))
                     await db.commit()
+
+                    # In-Memory-Cache zurücksetzen
+                    _last_saved_values = {"count_in": -1, "count_out": -1}
                     return True
     return False
 

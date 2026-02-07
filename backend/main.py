@@ -10,6 +10,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from database import (
     init_db, save_count, get_latest_count,
@@ -25,14 +27,38 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Scheduler für täglichen Mitternachts-Reset
+scheduler = AsyncIOScheduler()
+
+
+async def scheduled_daily_reset():
+    """Geplanter täglicher Reset um Mitternacht."""
+    try:
+        reset_done = await check_daily_reset()
+        if reset_done:
+            logger.info("Geplanter täglicher Reset um Mitternacht durchgeführt")
+    except Exception as e:
+        logger.error(f"Fehler beim geplanten Reset: {e}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup und Shutdown Handler."""
     await init_db()
     logger.info("Datenbank initialisiert")
+
+    # Täglichen Reset um Mitternacht planen
+    scheduler.add_job(
+        scheduled_daily_reset,
+        CronTrigger(hour=0, minute=0),
+        id='daily_reset'
+    )
+    scheduler.start()
+    logger.info("Mitternachts-Reset Scheduler gestartet")
+
     logger.info("Warte auf Daten vom Xovis-Sensor (Data Push)...")
     yield
+    scheduler.shutdown()
     logger.info("Server beendet")
 
 
@@ -87,6 +113,8 @@ async def webhook_xovis(request: Request):
         live = await get_live_count()
         count_in = live.get("count_in", 0)
         count_out = live.get("count_out", 0)
+        base_in = live.get("base_in", 0)
+        base_out = live.get("base_out", 0)
 
         # Format 1: Live Data Push (live_data mit frames/events)
         if "live_data" in data:
@@ -99,11 +127,11 @@ async def webhook_xovis(request: Request):
                         attrs = event.get("attributes", {})
                         counter_name = attrs.get("counter_name", "")
                         counter_value = attrs.get("counter_value", 0)
-                        # counter_value ist kumulativ - direkt übernehmen
+                        # counter_value ist kumulativ - Base-Offset abziehen für Tageswert
                         if counter_name == "fw":
-                            count_in = counter_value
+                            count_in = max(0, counter_value - base_in)
                         elif counter_name == "bw":
-                            count_out = counter_value
+                            count_out = max(0, counter_value - base_out)
 
         # Format 2: Logic Push (logics_data mit records) - Intervall-Werte addieren
         elif "logics_data" in data:
