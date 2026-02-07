@@ -33,19 +33,30 @@ def import_csv(csv_path: str):
 
     with open(csv_path, "r", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
+        print(f"CSV-Spalten: {reader.fieldnames}")
         row_count = 0
-        for row in reader:
-            fw = int(row["Forward counter"])
-            bw = int(row["Backward counter"])
-            if fw == 0 and bw == 0:
-                continue
+        for line_num, row in enumerate(reader, start=2):
+            try:
+                fw_val = row.get("Forward counter") or "0"
+                bw_val = row.get("Backward counter") or "0"
+                fw = int(fw_val.strip())
+                bw = int(bw_val.strip())
+                if fw == 0 and bw == 0:
+                    continue
 
-            dt = parse_timestamp(row["from-time"])
-            date_str = dt.strftime("%Y-%m-%d")
-            hour = dt.hour
-            daily_hourly[date_str][hour]["fw"] += fw
-            daily_hourly[date_str][hour]["bw"] += bw
-            row_count += 1
+                from_time = row.get("from-time") or ""
+                if not from_time.strip():
+                    continue
+
+                dt = parse_timestamp(from_time)
+                date_str = dt.strftime("%Y-%m-%d")
+                hour = dt.hour
+                daily_hourly[date_str][hour]["fw"] += fw
+                daily_hourly[date_str][hour]["bw"] += bw
+                row_count += 1
+            except (ValueError, TypeError) as e:
+                print(f"  Zeile {line_num} übersprungen: {e} - {dict(row)}")
+                continue
 
     print(f"CSV gelesen: {row_count} Zeilen mit Daten")
     print(f"Tage mit Daten: {len(daily_hourly)}")
