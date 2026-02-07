@@ -68,7 +68,31 @@ body {
 .logo {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 16px;
+}
+
+.logo-brand {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.logo-brand img {
+    position: relative;
+    top: 2px;
+}
+
+.logo-location {
+    font-size: 1.05rem;
+    font-weight: 300;
+    color: var(--text);
+    letter-spacing: 0.12em;
+}
+
+.logo-divider {
+    width: 1px;
+    height: 28px;
+    background: var(--border);
 }
 
 h1 {
@@ -77,14 +101,6 @@ h1 {
     color: var(--text);
     letter-spacing: -0.02em;
     line-height: 1.2;
-}
-
-.header-subtitle {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    font-weight: 400;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
 }
 
 .header-right {
