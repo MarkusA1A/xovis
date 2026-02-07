@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Backend-Code kopieren
-COPY *.py .
+COPY *.py ./
 
 # Frontend-Verzeichnis erstellen
 RUN mkdir -p /app/frontend
