@@ -14,7 +14,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from database import (
-    init_db, save_count, get_latest_count,
+    init_db,
     get_hourly_stats, get_daily_stats, get_monthly_stats,
     update_live_count, get_live_count, save_count_if_changed,
     check_daily_reset
@@ -156,7 +156,9 @@ async def webhook_xovis(request: Request):
             # Auch in Historie speichern für Charts
             saved = await save_count_if_changed(count_in, count_out, occupancy)
             if saved:
-                logger.info(f"Aktualisiert + gespeichert: IN={count_in}, OUT={count_out}, Belegung={occupancy}")
+                logger.info(
+                    f"Gespeichert: IN={count_in}, OUT={count_out}, Belegung={occupancy}"
+                )
             else:
                 logger.info(f"Aktualisiert: IN={count_in}, OUT={count_out}, Belegung={occupancy}")
         else:
@@ -172,7 +174,7 @@ async def webhook_xovis(request: Request):
 
 def parse_xovis_xml(text: str) -> Dict[str, Any]:
     """Parst Xovis XML-Daten."""
-    result = {"raw": text}
+    result: Dict[str, Any] = {"raw": text}
 
     # Verschiedene XML-Patterns für Xovis
     patterns = [

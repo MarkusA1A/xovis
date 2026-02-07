@@ -1,6 +1,9 @@
-import aiosqlite
 from datetime import datetime, timedelta
+
+import aiosqlite
+
 from config import DATABASE_PATH
+
 
 async def init_db():
     """Initialisiert die Datenbank."""
@@ -37,7 +40,7 @@ async def init_db():
         ]:
             try:
                 await db.execute(f"ALTER TABLE live ADD COLUMN {column}")
-            except Exception:
+            except aiosqlite.OperationalError:
                 pass  # Spalte existiert bereits
 
         # Initialen Live-Eintrag erstellen (mit last_reset_date für korrekten ersten Reset)
@@ -60,7 +63,7 @@ async def update_live_count(count_in: int, count_out: int, occupancy: int):
                 last_update = ?,
                 last_reset_date = COALESCE(last_reset_date, date('now', 'localtime'))
             WHERE id = 1
-        """, (count_in, count_out, occupancy, datetime.now().isoformat()))
+        """, (count_in, count_out, occupancy, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         await db.commit()
 
 
@@ -133,7 +136,7 @@ async def get_latest_count():
 
 
 async def get_hourly_stats(date: datetime):
-    """Stündliche Statistiken für einen Tag."""
+    """Stündliche Statistiken für einen Tag - Differenzwerte pro Stunde."""
     start = date.replace(hour=0, minute=0, second=0, microsecond=0)
     end = start + timedelta(days=1)
 
@@ -142,15 +145,33 @@ async def get_hourly_stats(date: datetime):
         async with db.execute("""
             SELECT
                 strftime('%H', timestamp) as hour,
-                MAX(count_in) as total_in,
-                MAX(count_out) as total_out,
+                MAX(count_in) as cumulative_in,
+                MAX(count_out) as cumulative_out,
                 MAX(occupancy) as max_occupancy
             FROM counts
             WHERE timestamp BETWEEN ? AND ?
             GROUP BY strftime('%H', timestamp)
             ORDER BY hour
-        """, (start.isoformat(), end.isoformat())) as cursor:
-            return [dict(row) for row in await cursor.fetchall()]
+        """, (start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S"))) as cursor:
+            rows = [dict(row) for row in await cursor.fetchall()]
+
+    # Berechne Differenz pro Stunde
+    result = []
+    prev_in = 0
+    prev_out = 0
+    for row in rows:
+        hour_in = row['cumulative_in'] - prev_in
+        hour_out = row['cumulative_out'] - prev_out
+        result.append({
+            'hour': row['hour'],
+            'total_in': hour_in,
+            'total_out': hour_out,
+            'max_occupancy': row['max_occupancy']
+        })
+        prev_in = row['cumulative_in']
+        prev_out = row['cumulative_out']
+
+    return result
 
 
 async def get_daily_stats(start_date: datetime, days: int = 7):
@@ -170,7 +191,7 @@ async def get_daily_stats(start_date: datetime, days: int = 7):
             WHERE timestamp BETWEEN ? AND ?
             GROUP BY date(timestamp)
             ORDER BY date
-        """, (start.isoformat(), end.isoformat())) as cursor:
+        """, (start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S"))) as cursor:
             return [dict(row) for row in await cursor.fetchall()]
 
 
@@ -194,7 +215,7 @@ async def get_monthly_stats(year: int, month: int):
             WHERE timestamp BETWEEN ? AND ?
             GROUP BY date(timestamp)
             ORDER BY date
-        """, (start.isoformat(), end.isoformat())) as cursor:
+        """, (start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S"))) as cursor:
             return [dict(row) for row in await cursor.fetchall()]
 
 

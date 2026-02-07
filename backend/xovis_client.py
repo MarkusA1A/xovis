@@ -8,6 +8,7 @@ from config import (
 
 logger = logging.getLogger(__name__)
 
+
 class XovisClient:
     """Client für die Kommunikation mit dem Xovis PC2SE Sensor."""
 
@@ -46,7 +47,7 @@ class XovisClient:
     def _parse_xml(self, xml_text: str) -> Dict[str, Any]:
         """Einfacher XML-Parser für Xovis-Daten."""
         import re
-        result = {}
+        result: Dict[str, Any] = {}
 
         # Versuche, count_in, count_out, occupancy aus XML zu extrahieren
         patterns = {
@@ -62,7 +63,7 @@ class XovisClient:
 
         return result if result else {"raw": xml_text}
 
-    async def get_live_count(self) -> Dict[str, int]:
+    async def get_live_count(self) -> Dict[str, Any]:
         """Holt die aktuellen Live-Zähldaten."""
         # Versuche verschiedene Endpoints
         endpoints = [
@@ -95,7 +96,7 @@ class XovisClient:
         logger.warning("Keine Verbindung zum Sensor - verwende Testdaten")
         return self._get_simulated_data()
 
-    def _get_simulated_data(self) -> Dict[str, int]:
+    def _get_simulated_data(self) -> Dict[str, Any]:
         """Generiert simulierte Testdaten wenn Sensor nicht erreichbar."""
         import random
         from datetime import datetime
