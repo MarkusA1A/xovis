@@ -1,4 +1,7 @@
+import json
 import logging
+import re
+import traceback
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from typing import Dict, Any
@@ -73,7 +76,6 @@ async def webhook_xovis(request: Request):
         logger.info(f"Webhook empfangen - Content-Type: {content_type}")
         logger.info(f"Body: {body_text}")
 
-        import json
         data = json.loads(body_text)
 
         # Prüfen ob Mitternachts-Reset nötig ist
@@ -136,14 +138,12 @@ async def webhook_xovis(request: Request):
 
     except Exception as e:
         logger.error(f"Webhook Fehler: {e}")
-        import traceback
         logger.error(traceback.format_exc())
         return {"status": "error", "message": str(e)}
 
 
 def parse_xovis_xml(text: str) -> Dict[str, Any]:
     """Parst Xovis XML-Daten."""
-    import re
     result = {"raw": text}
 
     # Verschiedene XML-Patterns für Xovis
@@ -226,7 +226,7 @@ async def get_status():
         try:
             last_dt = datetime.fromisoformat(last_update)
             sensor_active = (datetime.now() - last_dt).seconds < 300
-        except:
+        except Exception:
             pass
 
     return {

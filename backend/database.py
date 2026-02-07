@@ -32,7 +32,7 @@ async def init_db():
         # Spalte hinzufügen falls sie fehlt (für bestehende DBs)
         try:
             await db.execute("ALTER TABLE live ADD COLUMN last_reset_date TEXT")
-        except:
+        except Exception:
             pass  # Spalte existiert bereits
 
         # Initialen Live-Eintrag erstellen
