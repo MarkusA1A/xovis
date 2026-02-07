@@ -99,9 +99,6 @@ async function updateLiveData() {
     animateValue('count-out', current.count_out);
 
     updateOccupancyRing(current.occupancy || 0);
-
-    const timestamp = new Date(data.timestamp);
-    document.getElementById('last-update').textContent = timestamp.toLocaleTimeString('de-DE');
 }
 
 async function updateStatus() {
@@ -121,6 +118,18 @@ async function updateStatus() {
     }
 
     sensorIp.textContent = data.sensor_ip || '--';
+
+    // Letztes Sensor-Update anzeigen
+    const lastUpdateEl = document.getElementById('last-update');
+    if (data.last_update) {
+        const dt = new Date(data.last_update);
+        lastUpdateEl.textContent = dt.toLocaleString('de-DE', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+    } else {
+        lastUpdateEl.textContent = 'Keine Daten empfangen';
+    }
 }
 
 // ==================== Chart Summary ====================
