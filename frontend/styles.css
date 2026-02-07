@@ -68,31 +68,37 @@ body {
 .logo {
     display: flex;
     align-items: center;
-    gap: 16px;
+}
+
+.logo-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .logo-brand {
     display: flex;
-    align-items: baseline;
-    gap: 6px;
-}
-
-.logo-brand img {
-    position: relative;
-    top: 2px;
+    align-items: center;
+    gap: 5px;
 }
 
 .logo-location {
-    font-size: 1.05rem;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.95rem;
     font-weight: 300;
     color: var(--text);
-    letter-spacing: 0.12em;
+    letter-spacing: 0.18em;
+    position: relative;
+    top: 1px;
 }
 
-.logo-divider {
-    width: 1px;
-    height: 28px;
-    background: var(--border);
+.logo-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding-left: 1px;
 }
 
 h1 {
