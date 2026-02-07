@@ -16,8 +16,8 @@ from apscheduler.triggers.cron import CronTrigger
 from database import (
     init_db,
     get_hourly_stats, get_daily_stats, get_monthly_stats,
-    update_live_count, get_live_count, save_count_if_changed,
-    check_daily_reset
+    update_live_count, get_live_count, get_today_totals,
+    save_count_if_changed, check_daily_reset
 )
 
 # Logging konfigurieren
@@ -232,13 +232,20 @@ def extract_count(data: Dict, keys: list) -> int:
 
 @app.get("/api/live")
 async def api_get_live():
-    """Aktuelle Zähldaten."""
+    """Aktuelle Zähldaten (Kombination aus Live-Tabelle und heutigen Counts)."""
     live = await get_live_count()
+    today = await get_today_totals()
+
+    # Höheren Wert verwenden (Live-Webhook oder historische Counts-Daten)
+    count_in = max(live.get("count_in", 0), today.get("count_in", 0))
+    count_out = max(live.get("count_out", 0), today.get("count_out", 0))
+    occupancy = max(0, count_in - count_out)
+
     return {
         "current": {
-            "count_in": live.get("count_in", 0),
-            "count_out": live.get("count_out", 0),
-            "occupancy": live.get("occupancy", 0),
+            "count_in": count_in,
+            "count_out": count_out,
+            "occupancy": occupancy,
         },
         "timestamp": datetime.now().isoformat()
     }

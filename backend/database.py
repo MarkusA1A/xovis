@@ -114,6 +114,25 @@ async def get_live_count() -> dict:
             return {"count_in": 0, "count_out": 0, "occupancy": 0, "last_update": None}
 
 
+async def get_today_totals() -> dict:
+    """Holt die heutigen Tagessummen aus der counts-Tabelle."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("""
+            SELECT
+                COALESCE(MAX(count_in), 0) as count_in,
+                COALESCE(MAX(count_out), 0) as count_out,
+                COALESCE(MAX(occupancy), 0) as occupancy
+            FROM counts
+            WHERE date(timestamp) = ?
+        """, (today,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return dict(row)
+            return {"count_in": 0, "count_out": 0, "occupancy": 0}
+
+
 async def save_count(count_in: int, count_out: int, occupancy: int):
     """Speichert einen Zählwert in der Historie."""
     async with aiosqlite.connect(DATABASE_PATH) as db:
