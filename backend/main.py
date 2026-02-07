@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
 # FastAPI App
 app = FastAPI(
     title="Xovis Besucherzähler Dashboard",
-    description="Visualisierung der Besucherzahlen im Ärztehaus",
+    description="Visualisierung der Besucherzahlen im MedZentrum Weiz",
     version="2.0.0",
     lifespan=lifespan
 )
