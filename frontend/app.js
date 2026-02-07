@@ -1,26 +1,51 @@
 // Xovis Dashboard - Frontend JavaScript
 
-const API_BASE = '';  // Relativ zur aktuellen Domain
+const API_BASE = '';
+const MAX_OCCUPANCY = 50; // Maximale Gebäudebelegung für Ring-Anzeige
 
 // Chart.js Instanzen
 let chartToday = null;
 let chartWeek = null;
 let chartMonth = null;
 
-// Farben für Charts
+// Farben
 const COLORS = {
-    in: 'rgb(34, 197, 94)',             // Grün
-    inBorder: 'rgb(22, 163, 74)',
-    inBg: 'rgba(34, 197, 94, 0.15)',
-    out: 'rgb(239, 68, 68)',            // Rot
-    outBorder: 'rgb(220, 38, 38)',
-    outBg: 'rgba(239, 68, 68, 0.15)',
-    occupancy: 'rgb(37, 99, 235)',      // Blau
-    occupancyBorder: 'rgb(29, 78, 216)',
-    occupancyBg: 'rgba(37, 99, 235, 0.1)'
+    in: 'rgb(45, 198, 83)',
+    inBorder: 'rgb(34, 160, 65)',
+    inBg: 'rgba(45, 198, 83, 0.12)',
+    out: 'rgb(230, 57, 70)',
+    outBorder: 'rgb(190, 40, 52)',
+    outBg: 'rgba(230, 57, 70, 0.12)',
+    occupancy: 'rgb(0, 119, 182)',
+    occupancyBorder: 'rgb(0, 95, 150)',
+    occupancyBg: 'rgba(0, 119, 182, 0.08)'
 };
 
-// ==================== API Calls ====================
+// Dark Mode erkennen
+function isDarkMode() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function getGridColor() {
+    return isDarkMode() ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+}
+
+function getTickColor() {
+    return isDarkMode() ? '#5A6D87' : '#94A3B8';
+}
+
+// ==================== Uhr ====================
+
+function updateClock() {
+    const el = document.getElementById('clock');
+    if (el) {
+        el.textContent = new Date().toLocaleTimeString('de-DE', {
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
+}
+
+// ==================== API ====================
 
 async function fetchAPI(endpoint) {
     try {
@@ -33,22 +58,35 @@ async function fetchAPI(endpoint) {
     }
 }
 
-// ==================== Live-Daten ====================
+// ==================== Ring-Anzeige ====================
 
-// Letzte bekannte Werte für Animation
-let lastValues = { occupancy: null, count_in: null, count_out: null };
+function updateOccupancyRing(value) {
+    const ring = document.getElementById('occupancy-ring');
+    if (!ring) return;
+
+    const circumference = 2 * Math.PI * 52; // r=52
+    const percent = Math.min(value / MAX_OCCUPANCY, 1);
+    const offset = circumference * (1 - percent);
+    ring.setAttribute('stroke-dashoffset', offset);
+}
+
+// ==================== Value Animation ====================
 
 function animateValue(elementId, newValue) {
     const element = document.getElementById(elementId);
-    const oldValue = element.textContent;
-    element.textContent = newValue ?? '--';
+    if (!element) return;
 
-    // Animation bei Wertänderung
-    if (oldValue !== '--' && oldValue !== String(newValue)) {
+    const oldText = element.textContent;
+    const newText = newValue != null ? String(newValue) : '--';
+    element.textContent = newText;
+
+    if (oldText !== '--' && oldText !== newText) {
         element.classList.add('updated');
-        setTimeout(() => element.classList.remove('updated'), 300);
+        setTimeout(() => element.classList.remove('updated'), 500);
     }
 }
+
+// ==================== Live-Daten ====================
 
 async function updateLiveData() {
     const data = await fetchAPI('/api/live');
@@ -56,12 +94,12 @@ async function updateLiveData() {
 
     const current = data.current || {};
 
-    // Werte mit Animation aktualisieren
     animateValue('current-occupancy', current.occupancy);
     animateValue('count-in', current.count_in);
     animateValue('count-out', current.count_out);
 
-    // Zeitstempel
+    updateOccupancyRing(current.occupancy || 0);
+
     const timestamp = new Date(data.timestamp);
     document.getElementById('last-update').textContent = timestamp.toLocaleTimeString('de-DE');
 }
@@ -79,65 +117,105 @@ async function updateStatus() {
         statusText.textContent = 'Sensor verbunden';
     } else {
         statusDot.className = 'status-dot disconnected';
-        statusText.textContent = 'Sensor nicht erreichbar (Testmodus)';
+        statusText.textContent = 'Sensor nicht erreichbar';
     }
 
-    // Sensor IP anzeigen
     sensorIp.textContent = data.sensor_ip || '--';
+}
+
+// ==================== Chart Summary ====================
+
+function renderSummary(containerId, data, type) {
+    const el = document.getElementById(containerId);
+    if (!el || !data) return;
+
+    let html = '';
+
+    if (type === 'today') {
+        const totalIn = data.reduce((s, h) => s + (h.total_in || 0), 0);
+        const totalOut = data.reduce((s, h) => s + (h.total_out || 0), 0);
+        const peakHour = data.reduce((max, h) =>
+            (h.total_in || 0) > (max.total_in || 0) ? h : max, data[0] || {});
+        html = `
+            <span class="stat">Eintritte: <span class="stat-value">${totalIn}</span></span>
+            <span class="stat">Austritte: <span class="stat-value">${totalOut}</span></span>
+            ${peakHour?.hour ? `<span class="stat">Peak: <span class="stat-value">${peakHour.hour}:00</span></span>` : ''}
+        `;
+    } else {
+        const totalIn = data.reduce((s, d) => s + (d.total_in || 0), 0);
+        const avgIn = data.length ? Math.round(totalIn / data.length) : 0;
+        html = `
+            <span class="stat">Gesamt: <span class="stat-value">${totalIn}</span></span>
+            <span class="stat">Durchschnitt/Tag: <span class="stat-value">${avgIn}</span></span>
+        `;
+    }
+
+    el.innerHTML = html;
 }
 
 // ==================== Charts ====================
 
-function createChart(ctx, type, labels, datasets, options = {}) {
-    return new Chart(ctx, {
-        type: type,
-        data: { labels, datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: 'index'
-            },
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        usePointStyle: true,
-                        padding: 15
-                    }
-                },
-                tooltip: {
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    padding: 12,
-                    titleFont: { size: 14 },
-                    bodyFont: { size: 13 },
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.dataset.label}: ${context.parsed.y} Personen`;
-                        }
-                    }
+function chartDefaults() {
+    return {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { intersect: false, mode: 'index' },
+        plugins: {
+            legend: {
+                position: 'top',
+                align: 'end',
+                labels: {
+                    usePointStyle: true,
+                    pointStyle: 'circle',
+                    padding: 16,
+                    font: { family: "'Outfit', sans-serif", size: 12, weight: '500' },
+                    color: getTickColor()
                 }
             },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        precision: 0
-                    },
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
+            tooltip: {
+                backgroundColor: isDarkMode() ? '#1C2840' : '#1B2A4A',
+                titleColor: '#E8EDF5',
+                bodyColor: '#C0CDE0',
+                borderColor: isDarkMode() ? '#304060' : 'transparent',
+                borderWidth: isDarkMode() ? 1 : 0,
+                padding: 12,
+                cornerRadius: 10,
+                titleFont: { family: "'Outfit', sans-serif", size: 13, weight: '600' },
+                bodyFont: { family: "'Outfit', sans-serif", size: 12 },
+                callbacks: {
+                    label: function(ctx) {
+                        return ` ${ctx.dataset.label}: ${ctx.parsed.y} Personen`;
                     }
                 }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    precision: 0,
+                    font: { family: "'JetBrains Mono', monospace", size: 11 },
+                    color: getTickColor()
+                },
+                grid: { color: getGridColor() },
+                border: { display: false }
             },
-            ...options
+            x: {
+                ticks: {
+                    font: { family: "'Outfit', sans-serif", size: 11 },
+                    color: getTickColor()
+                },
+                grid: { display: false },
+                border: { display: false }
+            }
         }
-    });
+    };
+}
+
+function createChart(ctx, type, labels, datasets, extraOpts = {}) {
+    const opts = chartDefaults();
+    Object.assign(opts, extraOpts);
+    return new Chart(ctx, { type, data: { labels, datasets }, options: opts });
 }
 
 async function updateTodayChart() {
@@ -149,14 +227,15 @@ async function updateTodayChart() {
     const dataOut = [];
     const dataOccupancy = [];
 
-    // Alle 24 Stunden vorbereiten
-    for (let h = 0; h < 24; h++) {
+    for (let h = 6; h <= 20; h++) {
         labels.push(`${h.toString().padStart(2, '0')}:00`);
         const hourData = data.hours.find(d => parseInt(d.hour) === h);
         dataIn.push(hourData?.total_in || 0);
         dataOut.push(hourData?.total_out || 0);
         dataOccupancy.push(hourData?.max_occupancy || 0);
     }
+
+    renderSummary('today-summary', data.hours, 'today');
 
     const ctx = document.getElementById('chart-today');
 
@@ -173,34 +252,37 @@ async function updateTodayChart() {
                 data: dataIn,
                 borderColor: COLORS.in,
                 backgroundColor: COLORS.inBg,
-                borderWidth: 2,
+                borderWidth: 2.5,
                 fill: true,
-                tension: 0.4,
-                pointRadius: 3,
-                pointHoverRadius: 6
+                tension: 0.35,
+                pointRadius: 0,
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: COLORS.in
             },
             {
                 label: 'Austritte',
                 data: dataOut,
                 borderColor: COLORS.out,
                 backgroundColor: COLORS.outBg,
-                borderWidth: 2,
+                borderWidth: 2.5,
                 fill: true,
-                tension: 0.4,
-                pointRadius: 3,
-                pointHoverRadius: 6
+                tension: 0.35,
+                pointRadius: 0,
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: COLORS.out
             },
             {
-                label: 'Max. Belegung',
+                label: 'Belegung',
                 data: dataOccupancy,
                 borderColor: COLORS.occupancy,
                 backgroundColor: COLORS.occupancyBg,
                 borderWidth: 2,
                 fill: false,
-                tension: 0.4,
+                tension: 0.35,
                 borderDash: [6, 4],
-                pointRadius: 3,
-                pointHoverRadius: 6
+                pointRadius: 0,
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: COLORS.occupancy
             }
         ]);
     }
@@ -214,9 +296,10 @@ async function updateWeekChart() {
         const date = new Date(d.date);
         return date.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' });
     });
-
     const dataIn = data.days.map(d => d.total_in || 0);
     const dataOut = data.days.map(d => d.total_out || 0);
+
+    renderSummary('week-summary', data.days, 'week');
 
     const ctx = document.getElementById('chart-week');
 
@@ -231,17 +314,19 @@ async function updateWeekChart() {
                 label: 'Eintritte',
                 data: dataIn,
                 backgroundColor: COLORS.in,
-                borderColor: COLORS.inBorder,
-                borderWidth: 1,
-                borderRadius: 4
+                borderColor: 'transparent',
+                borderWidth: 0,
+                borderRadius: 6,
+                borderSkipped: false
             },
             {
                 label: 'Austritte',
                 data: dataOut,
                 backgroundColor: COLORS.out,
-                borderColor: COLORS.outBorder,
-                borderWidth: 1,
-                borderRadius: 4
+                borderColor: 'transparent',
+                borderWidth: 0,
+                borderRadius: 6,
+                borderSkipped: false
             }
         ]);
     }
@@ -251,13 +336,11 @@ async function updateMonthChart() {
     const data = await fetchAPI('/api/stats/month');
     if (!data || !data.days) return;
 
-    const labels = data.days.map(d => {
-        const date = new Date(d.date);
-        return date.getDate().toString();
-    });
-
+    const labels = data.days.map(d => new Date(d.date).getDate().toString());
     const dataIn = data.days.map(d => d.total_in || 0);
     const dataOut = data.days.map(d => d.total_out || 0);
+
+    renderSummary('month-summary', data.days, 'month');
 
     const ctx = document.getElementById('chart-month');
 
@@ -272,17 +355,19 @@ async function updateMonthChart() {
                 label: 'Eintritte',
                 data: dataIn,
                 backgroundColor: COLORS.in,
-                borderColor: COLORS.inBorder,
-                borderWidth: 1,
-                borderRadius: 4
+                borderColor: 'transparent',
+                borderWidth: 0,
+                borderRadius: 4,
+                borderSkipped: false
             },
             {
                 label: 'Austritte',
                 data: dataOut,
                 backgroundColor: COLORS.out,
-                borderColor: COLORS.outBorder,
-                borderWidth: 1,
-                borderRadius: 4
+                borderColor: 'transparent',
+                borderWidth: 0,
+                borderRadius: 4,
+                borderSkipped: false
             }
         ]);
     }
@@ -296,51 +381,36 @@ function setupTabs() {
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-            // Alle deaktivieren
             tabs.forEach(t => t.classList.remove('active'));
             contents.forEach(c => c.classList.remove('active'));
 
-            // Aktiven Tab setzen
             tab.classList.add('active');
             const tabId = `tab-${tab.dataset.tab}`;
             document.getElementById(tabId).classList.add('active');
 
-            // Chart aktualisieren
-            switch(tab.dataset.tab) {
-                case 'today':
-                    updateTodayChart();
-                    break;
-                case 'week':
-                    updateWeekChart();
-                    break;
-                case 'month':
-                    updateMonthChart();
-                    break;
+            switch (tab.dataset.tab) {
+                case 'today': updateTodayChart(); break;
+                case 'week': updateWeekChart(); break;
+                case 'month': updateMonthChart(); break;
             }
         });
     });
 }
 
-// ==================== Initialisierung ====================
+// ==================== Init ====================
 
 async function init() {
-    console.log('Xovis Dashboard wird initialisiert...');
-
-    // Tabs einrichten
     setupTabs();
+    updateClock();
+    setInterval(updateClock, 30000);
 
-    // Erste Daten laden
     await updateStatus();
     await updateLiveData();
     await updateTodayChart();
 
-    // Automatische Updates
-    setInterval(updateLiveData, 10000);      // Alle 10 Sekunden
-    setInterval(updateStatus, 60000);        // Jede Minute
-    setInterval(updateTodayChart, 60000);    // Jede Minute
-
-    console.log('Dashboard bereit!');
+    setInterval(updateLiveData, 10000);
+    setInterval(updateStatus, 60000);
+    setInterval(updateTodayChart, 60000);
 }
 
-// Start
 document.addEventListener('DOMContentLoaded', init);
