@@ -8,6 +8,8 @@ services:
     container_name: xovis-dashboard
     restart: unless-stopped
     environment:
+      # Zeitzone
+      - TZ=Europe/Vienna
       # Xovis Sensor Konfiguration
       - XOVIS_SENSOR_IP=10.13.1.165
       - XOVIS_SENSOR_PORT=80
