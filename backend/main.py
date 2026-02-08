@@ -233,6 +233,11 @@ def extract_count(data: Dict, keys: list) -> int:
 @app.get("/api/live")
 async def api_get_live():
     """Aktuelle Zähldaten (Kombination aus Live-Tabelle und heutigen Counts)."""
+    # Mitternachts-Reset auch ohne Webhooks sicherstellen (Frontend pollt alle 10s)
+    reset_done = await check_daily_reset()
+    if reset_done:
+        logger.info("Täglicher Reset via /api/live Polling ausgelöst")
+
     live = await get_live_count()
     today = await get_today_totals()
 

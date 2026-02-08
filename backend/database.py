@@ -134,11 +134,12 @@ async def get_today_totals() -> dict:
 
 
 async def save_count(count_in: int, count_out: int, occupancy: int):
-    """Speichert einen Zählwert in der Historie."""
+    """Speichert einen Zählwert in der Historie (mit lokaler Zeitzone)."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute(
-            "INSERT INTO counts (count_in, count_out, occupancy) VALUES (?, ?, ?)",
-            (count_in, count_out, occupancy)
+            "INSERT INTO counts (timestamp, count_in, count_out, occupancy) VALUES (?, ?, ?, ?)",
+            (now, count_in, count_out, occupancy)
         )
         await db.commit()
 
