@@ -7,7 +7,6 @@ services:
       dockerfile: Dockerfile
     container_name: xovis-dashboard
     restart: unless-stopped
-    privileged: true
     environment:
       # Zeitzone
       - TZ=Europe/Vienna
@@ -23,6 +22,12 @@ services:
     volumes:
       # Frontend-Dateien
       - ./frontend:/app/frontend:ro
+      # Backend-Code (kein Rebuild bei Code-Änderungen nötig)
+      - ./backend/main.py:/app/main.py:ro
+      - ./backend/database.py:/app/database.py:ro
+      - ./backend/config.py:/app/config.py:ro
+      - ./backend/xovis_client.py:/app/xovis_client.py:ro
+      - ./backend/fix_reset.py:/app/fix_reset.py:ro
       # Persistente Datenbank
       - xovis-data:/data
     ports:
