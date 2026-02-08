@@ -49,6 +49,15 @@ async def init_db():
             VALUES (1, 0, 0, 0, date('now', 'localtime'))
         """)
 
+        # Bei jedem Start: Reset erzwingen damit akkumulierte Fehler bereinigt werden.
+        # Setzt last_reset_date auf gestern, sodass check_daily_reset() beim nächsten
+        # Aufruf einen sauberen Tages-Reset mit korrekten Base-Offsets durchführt.
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        await db.execute(
+            "UPDATE live SET last_reset_date = ? WHERE id = 1",
+            (yesterday,)
+        )
+
         await db.commit()
 
 
@@ -95,6 +104,13 @@ async def check_daily_reset():
                             last_reset_date = ?
                         WHERE id = 1
                     """, (new_base_in, new_base_out, today))
+
+                    # Alte counts-Einträge von heute löschen (enthalten
+                    # akkumulierte Werte von vor dem Reset)
+                    await db.execute(
+                        "DELETE FROM counts WHERE date(timestamp) = ?",
+                        (today,)
+                    )
                     await db.commit()
 
                     # In-Memory-Cache zurücksetzen
