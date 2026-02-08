@@ -28,6 +28,7 @@ services:
       - ./backend/config.py:/app/config.py:ro
       - ./backend/xovis_client.py:/app/xovis_client.py:ro
       - ./backend/fix_reset.py:/app/fix_reset.py:ro
+      - ./backend/start.py:/app/start.py:ro
       # Persistente Datenbank
       - xovis-data:/data
     ports:
