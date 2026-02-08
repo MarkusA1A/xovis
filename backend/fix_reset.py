@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Einmaliges Fix-Script: Erzwingt einen sauberen Tages-Reset der Live-Werte.
+Einmaliges Fix-Script: Erzwingt einen sauberen Tages-Reset der Live-Werte
+und bereinigt falsche Einträge in der counts-Tabelle.
 
 Verwendung im Docker-Container:
   docker exec xovis-dashboard python /app/backend/fix_reset.py
@@ -8,8 +9,7 @@ Verwendung im Docker-Container:
 
 import asyncio
 import os
-import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import aiosqlite
 
@@ -41,7 +41,30 @@ async def fix_reset():
         print(f"  last_update:     {row['last_update']}")
         print()
 
-        # 2. Reset erzwingen: base aktualisieren, counter auf 0
+        # 2. Falsche counts-Einträge von heute anzeigen und löschen
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        async with db.execute("""
+            SELECT COUNT(*) as cnt,
+                   COALESCE(MAX(count_in), 0) as max_in,
+                   COALESCE(MAX(count_out), 0) as max_out
+            FROM counts WHERE date(timestamp) = ?
+        """, (today,)) as cursor:
+            counts_row = await cursor.fetchone()
+
+        print(f"=== Counts-Tabelle für heute ({today}) ===")
+        print(f"  Einträge:   {counts_row['cnt']}")
+        print(f"  Max IN:     {counts_row['max_in']}")
+        print(f"  Max OUT:    {counts_row['max_out']}")
+
+        if counts_row['cnt'] > 0:
+            await db.execute(
+                "DELETE FROM counts WHERE date(timestamp) = ?", (today,)
+            )
+            print(f"  -> {counts_row['cnt']} falsche Einträge gelöscht")
+        print()
+
+        # 3. Live-Tabelle: base aktualisieren, counter auf 0
         old_base_in = row['base_in'] or 0
         old_base_out = row['base_out'] or 0
         old_count_in = row['count_in'] or 0
@@ -49,7 +72,6 @@ async def fix_reset():
 
         new_base_in = old_base_in + old_count_in
         new_base_out = old_base_out + old_count_out
-        today = datetime.now().strftime("%Y-%m-%d")
 
         await db.execute("""
             UPDATE live SET
@@ -63,7 +85,7 @@ async def fix_reset():
         """, (new_base_in, new_base_out, today))
         await db.commit()
 
-        # 3. Ergebnis anzeigen
+        # 4. Ergebnis anzeigen
         async with db.execute("SELECT * FROM live WHERE id = 1") as cursor:
             row = await cursor.fetchone()
 
@@ -75,8 +97,8 @@ async def fix_reset():
         print(f"  base_out:        {row['base_out']}")
         print(f"  last_reset_date: {row['last_reset_date']}")
         print()
-        print("Reset erfolgreich! Die Zähler starten jetzt bei 0.")
-        print("Der nächste Sensor-Webhook wird korrekte Tageswerte liefern.")
+        print("Reset erfolgreich! Zähler stehen auf 0.")
+        print("Der nächste Sensor-Webhook liefert korrekte Tageswerte.")
 
 
 if __name__ == "__main__":

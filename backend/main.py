@@ -16,7 +16,7 @@ from apscheduler.triggers.cron import CronTrigger
 from database import (
     init_db,
     get_hourly_stats, get_daily_stats, get_monthly_stats,
-    update_live_count, get_live_count, get_today_totals,
+    update_live_count, get_live_count,
     save_count_if_changed, check_daily_reset
 )
 
@@ -232,18 +232,15 @@ def extract_count(data: Dict, keys: list) -> int:
 
 @app.get("/api/live")
 async def api_get_live():
-    """Aktuelle Zähldaten (Kombination aus Live-Tabelle und heutigen Counts)."""
+    """Aktuelle Zähldaten direkt aus der Live-Tabelle."""
     # Mitternachts-Reset auch ohne Webhooks sicherstellen (Frontend pollt alle 10s)
     reset_done = await check_daily_reset()
     if reset_done:
         logger.info("Täglicher Reset via /api/live Polling ausgelöst")
 
     live = await get_live_count()
-    today = await get_today_totals()
-
-    # Höheren Wert verwenden (Live-Webhook oder historische Counts-Daten)
-    count_in = max(live.get("count_in", 0), today.get("count_in", 0))
-    count_out = max(live.get("count_out", 0), today.get("count_out", 0))
+    count_in = live.get("count_in", 0)
+    count_out = live.get("count_out", 0)
     occupancy = max(0, count_in - count_out)
 
     return {
