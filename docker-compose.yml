@@ -7,8 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: xovis-dashboard
     restart: unless-stopped
-    security_opt:
-      - seccomp:unconfined
+    privileged: true
     environment:
       # Zeitzone
       - TZ=Europe/Vienna
