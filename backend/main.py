@@ -1,8 +1,3 @@
-# uvloop MUSS vor allen asyncio-Imports aktiviert werden
-# (umgeht socketpair-Block auf Proxmox)
-import uvloop
-uvloop.install()
-
 import json
 import logging
 import re
